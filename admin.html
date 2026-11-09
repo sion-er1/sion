@@ -1,0 +1,167 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Панель администратора</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;margin:0;background:#f4f6f8;color:#222}
+  header{background:#2c3e50;color:#fff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}
+  header a{color:#fff;text-decoration:none;margin-left:16px}
+  main{max-width:1100px;margin:24px auto;padding:0 16px}
+  h1,h2{color:#2c3e50}
+  .card{background:#fff;border-radius:8px;padding:16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  input{padding:8px 10px;font-size:14px;border:1px solid #ccc;border-radius:6px}
+  button{padding:8px 12px;background:#2c3e50;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px}
+  button:hover{background:#1a252f}
+  button.danger{background:#c0392b}
+  form.inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <strong>📚 Онлайн-библиотека</strong>
+  <nav id="nav"></nav>
+</header>
+<main>
+  <h1>Панель администратора</h1>
+
+  <div class="card">
+    <h2>Добавить книгу</h2>
+    <form id="add-book-form" class="inline">
+      <input id="b-title" placeholder="Название" required>
+      <input id="b-author" placeholder="Автор" required>
+      <input id="b-genre" placeholder="Жанр">
+      <input id="b-isbn" placeholder="ISBN">
+      <input id="b-copies" type="number" min="1" value="1" style="width:90px">
+      <button type="submit">Добавить</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Книги</h2>
+    <table id="books-table"></table>
+  </div>
+
+  <div class="card">
+    <h2>Активные выдачи</h2>
+    <table id="loans-table"></table>
+  </div>
+
+  <div class="card">
+    <h2>Читательский спрос (топ-5)</h2>
+    <table id="demand-table"></table>
+  </div>
+</main>
+
+<script>
+function currentUser(){return JSON.parse(localStorage.getItem('currentUser')||'null')}
+function logout(){localStorage.removeItem('currentUser');location.href='index.html'}
+
+function getBooks(){return JSON.parse(localStorage.getItem('books')||'[]')}
+function setBooks(v){localStorage.setItem('books', JSON.stringify(v))}
+function getLoans(){return JSON.parse(localStorage.getItem('loans')||'[]')}
+function setLoans(v){localStorage.setItem('loans', JSON.stringify(v))}
+function getUsers(){return JSON.parse(localStorage.getItem('users')||'[]')}
+
+function renderHeader(){
+  const u = currentUser();
+  document.getElementById('nav').innerHTML = `
+    <a href="index.html">Каталог</a>
+    <a href="admin.html">Панель</a>
+    ${u ? `<a href="#" onclick="logout();return false">Выйти (${u.email})</a>` : ''}
+  `;
+}
+
+function renderAdmin(){
+  const books = getBooks();
+  const loans = getLoans();
+  const users = getUsers();
+
+  document.getElementById('books-table').innerHTML = `
+    <tr><th>ID</th><th>Название</th><th>Автор</th><th>Жанр</th><th>Экз.</th><th></th></tr>
+    ${books.map(b=>`
+      <tr>
+        <td>${b.id}</td><td>${b.title}</td><td>${b.author}</td>
+        <td>${b.genre||'—'}</td><td>${b.copies}</td>
+        <td><button class="danger" onclick="deleteBook(${b.id})">Удалить</button></td>
+      </tr>
+    `).join('')}
+  `;
+
+  const active = loans.filter(l=>!l.returnedAt);
+  document.getElementById('loans-table').innerHTML = `
+    <tr><th>Книга</th><th>Читатель</th><th>Дата выдачи</th><th></th></tr>
+    ${active.map(l=>{
+      const b = books.find(x=>x.id===l.bookId);
+      const u = users.find(x=>x.id===l.userId);
+      return `<tr>
+        <td>${b?.title||'—'}</td>
+        <td>${u?.email||'—'}</td>
+        <td>${new Date(l.issuedAt).toLocaleString()}</td>
+        <td><button onclick="returnBook(${l.id})">Вернуть</button></td>
+      </tr>`;
+    }).join('') || "<tr><td colspan='4'>Нет активных выдач</td></tr>"}
+  `;
+
+  const demand = {};
+  loans.forEach(l=>demand[l.bookId]=(demand[l.bookId]||0)+1);
+  const top = Object.entries(demand)
+    .sort((a,b)=>b[1]-a[1]).slice(0,5)
+    .map(([id,cnt])=>{
+      const b = books.find(x=>x.id===+id);
+      return `<tr><td>${b?.title||'—'}</td><td>${cnt}</td></tr>`;
+    }).join('') || "<tr><td colspan='2'>Нет данных</td></tr>";
+
+  document.getElementById('demand-table').innerHTML =
+    `<tr><th>Книга</th><th>Выдач</th></tr>${top}`;
+}
+
+function deleteBook(id){
+  if(!confirm('Удалить книгу?')) return;
+  setBooks(getBooks().filter(b=>b.id!==id));
+  renderAdmin();
+}
+
+function returnBook(loanId){
+  const loans = getLoans();
+  const loan = loans.find(l=>l.id===loanId);
+  if(!loan) return;
+  loan.returnedAt = new Date().toISOString();
+  const books = getBooks();
+  const book = books.find(b=>b.id===loan.bookId);
+  if(book) book.copies++;
+  setLoans(loans); setBooks(books);
+  renderAdmin();
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  const u = currentUser();
+  if(!u){ location.href='login.html'; return; }
+  if(u.role!=='admin'){ alert('Доступ только для администратора'); location.href='index.html'; return; }
+
+  renderHeader();
+  renderAdmin();
+
+  document.getElementById('add-book-form').addEventListener('submit', e=>{
+    e.preventDefault();
+    const books = getBooks();
+    const title = document.getElementById('b-title').value.trim();
+    const author = document.getElementById('b-author').value.trim();
+    const genre = document.getElementById('b-genre').value.trim();
+    const isbn = document.getElementById('b-isbn').value.trim();
+    const copies = parseInt(document.getElementById('b-copies').value)||1;
+    if(!title || !author) return alert('Название и автор обязательны');
+
+    const id = books.length ? Math.max(...books.map(b=>b.id))+1 : 1;
+    books.push({id,title,author,genre,isbn,copies});
+    setBooks(books);
+    e.target.reset();
+    renderAdmin();
+  });
+});
+</script>
+</body>
+</html>

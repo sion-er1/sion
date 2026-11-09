@@ -1,0 +1,128 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Онлайн-библиотека — Каталог</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;margin:0;background:#f4f6f8;color:#222}
+  header{background:#2c3e50;color:#fff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}
+  header a{color:#fff;text-decoration:none;margin-left:16px}
+  header a:hover{text-decoration:underline}
+  main{max-width:1000px;margin:24px auto;padding:0 16px}
+  h1,h2{color:#2c3e50}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .book{background:#fff;border-radius:8px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .book h3{margin:0 0 6px;font-size:16px}
+  .meta{font-size:13px;color:#666}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px}
+  .badge.ok{background:#d4edda;color:#155724}
+  .badge.no{background:#f8d7da;color:#721c24}
+  input{padding:8px 10px;font-size:14px;border:1px solid #ccc;border-radius:6px;width:100%}
+</style>
+</head>
+<body>
+<header>
+  <strong>📚 Онлайн-библиотека</strong>
+  <nav id="nav"></nav>
+</header>
+<main>
+  <h1>Каталог книг</h1>
+  <input id="search" placeholder="Поиск по названию, автору, жанру" style="margin-bottom:16px">
+
+  <div id="catalog" class="grid"></div>
+
+  <h2 style="margin-top:32px">Рекомендации для вас</h2>
+  <div id="recommendations" class="grid"></div>
+</main>
+
+<script>
+/* ===== Инициализация «БД» ===== */
+function initData(){
+  if(!localStorage.getItem('books')){
+    localStorage.setItem('books', JSON.stringify([
+      {id:1,title:'Война и мир',author:'Л. Толстой',genre:'Классика',isbn:'978-5-04-116756-6',copies:3},
+      {id:2,title:'Мастер и Маргарита',author:'М. Булгаков',genre:'Классика',isbn:'978-5-17-118898-2',copies:2},
+      {id:3,title:'1984',author:'Дж. Оруэлл',genre:'Антиутопия',isbn:'978-5-04-116858-7',copies:4},
+      {id:4,title:'Гарри Поттер и философский камень',author:'Дж. Роулинг',genre:'Фэнтези',isbn:'978-5-389-07435-4',copies:5}
+    ]));
+  }
+  if(!localStorage.getItem('users')){
+    localStorage.setItem('users', JSON.stringify([
+      {id:1,email:'admin@lib.ru',password:'admin123',role:'admin'}
+    ]));
+  }
+  if(!localStorage.getItem('loans')) localStorage.setItem('loans','[]');
+}
+
+function getBooks(){return JSON.parse(localStorage.getItem('books')||'[]')}
+function getLoans(){return JSON.parse(localStorage.getItem('loans')||'[]')}
+function currentUser(){return JSON.parse(localStorage.getItem('currentUser')||'null')}
+
+function renderHeader(){
+  const u = currentUser();
+  document.getElementById('nav').innerHTML = `
+    <a href="index.html">Каталог</a>
+    ${u
+      ? `<a href="admin.html">Панель</a><a href="#" onclick="logout();return false">Выйти (${u.email})</a>`
+      : `<a href="register.html">Регистрация</a><a href="login.html">Вход</a>`}
+  `;
+}
+function logout(){localStorage.removeItem('currentUser');location.href='index.html'}
+
+/* ===== Каталог ===== */
+function renderHome(){
+  const q = document.getElementById('search').value.toLowerCase();
+  const books = getBooks().filter(b =>
+    !q || b.title.toLowerCase().includes(q) ||
+    b.author.toLowerCase().includes(q) ||
+    (b.genre||'').toLowerCase().includes(q)
+  );
+  document.getElementById('catalog').innerHTML = books.map(b=>`
+    <div class="book">
+      <h3>${b.title}</h3>
+      <div class="meta">${b.author} · ${b.genre||'—'}</div>
+      <div class="meta">ISBN: ${b.isbn||'—'}</div>
+      <div class="meta" style="margin-top:6px">
+        ${b.copies>0
+          ? `<span class="badge ok">Доступно: ${b.copies}</span>`
+          : `<span class="badge no">Нет в наличии</span>`}
+      </div>
+    </div>
+  `).join('') || '<p>Книги не найдены.</p>';
+
+  renderRecommendations();
+}
+
+function renderRecommendations(){
+  const u = currentUser();
+  const books = getBooks();
+  const loans = getLoans();
+  let recs = [];
+  if(u){
+    const counts = {};
+    loans.filter(l=>l.userId===u.id && l.returnedAt).forEach(l=>{
+      const b = books.find(x=>x.id===l.bookId);
+      if(b?.genre) counts[b.genre]=(counts[b.genre]||0)+1;
+    });
+    const fav = Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).slice(0,2);
+    recs = books.filter(b=>fav.includes(b.genre));
+  }
+  if(!recs.length) recs = books.slice(0,3);
+  document.getElementById('recommendations').innerHTML = recs.slice(0,5).map(b=>`
+    <div class="book">
+      <h3>${b.title}</h3>
+      <div class="meta">${b.author} · ${b.genre||'—'}</div>
+    </div>
+  `).join('');
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  initData();
+  renderHeader();
+  renderHome();
+  document.getElementById('search').addEventListener('input', renderHome);
+});
+</script>
+</body>
+</html>

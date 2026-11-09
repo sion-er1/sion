@@ -1,0 +1,81 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Вход</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;margin:0;background:#f4f6f8;color:#222}
+  header{background:#2c3e50;color:#fff;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}
+  header a{color:#fff;text-decoration:none;margin-left:16px}
+  main{max-width:1000px;margin:24px auto;padding:0 16px}
+  h1{color:#2c3e50}
+  .card{background:#fff;border-radius:8px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);max-width:420px;margin:0 auto}
+  input{width:100%;padding:8px 10px;font-size:14px;border:1px solid #ccc;border-radius:6px}
+  button{width:100%;padding:10px;background:#2c3e50;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px}
+  button:hover{background:#1a252f}
+  .flash{padding:10px;border-radius:6px;margin-bottom:12px;display:none}
+  .flash.error{background:#f8d7da;color:#721c24;display:block}
+</style>
+</head>
+<body>
+<header>
+  <strong>📚 Онлайн-библиотека</strong>
+  <nav id="nav"></nav>
+</header>
+<main>
+  <div class="card">
+    <h1>Вход</h1>
+    <div id="msg" class="flash"></div>
+    <form id="form">
+      <p><input id="email" type="email" placeholder="Email" required></p>
+      <p><input id="password" type="password" placeholder="Пароль" required></p>
+      <p><button type="submit">Войти</button></p>
+    </form>
+    <p style="text-align:center">Нет аккаунта? <a href="register.html">Зарегистрироваться</a></p>
+    <p style="text-align:center;color:#888;font-size:12px">Админ: admin@lib.ru / admin123</p>
+  </div>
+</main>
+
+<script>
+function currentUser(){return JSON.parse(localStorage.getItem('currentUser')||'null')}
+function renderHeader(){
+  const u = currentUser();
+  document.getElementById('nav').innerHTML = `
+    <a href="index.html">Каталог</a>
+    ${u
+      ? `<a href="admin.html">Панель</a><a href="#" onclick="logout();return false">Выйти (${u.email})</a>`
+      : `<a href="register.html">Регистрация</a><a href="login.html">Вход</a>`}
+  `;
+}
+function logout(){localStorage.removeItem('currentUser');location.href='index.html'}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  if(!localStorage.getItem('users')){
+    localStorage.setItem('users', JSON.stringify([
+      {id:1,email:'admin@lib.ru',password:'admin123',role:'admin'}
+    ]));
+  }
+  renderHeader();
+
+  document.getElementById('form').addEventListener('submit', e=>{
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const pass  = document.getElementById('password').value;
+    const msg   = document.getElementById('msg');
+
+    const user = JSON.parse(localStorage.getItem('users')||'[]')
+                  .find(u=>u.email===email && u.password===pass);
+
+    if(!user){
+      msg.className='flash error';
+      msg.textContent='Неверный email или пароль';
+      return;
+    }
+    localStorage.setItem('currentUser', JSON.stringify(user));
+    location.href = user.role==='admin' ? 'admin.html' : 'index.html';
+  });
+});
+</script>
+</body>
+</html>
